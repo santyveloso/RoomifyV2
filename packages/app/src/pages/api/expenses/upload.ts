@@ -1,33 +1,35 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl) {
+  throw new Error("SUPABASE_URL is not defined");
+}
+
+if (!supabaseAnonKey) {
+  throw new Error("SUPABASE_ANON_KEY is not defined");
+}
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  supabaseUrl,
+  supabaseAnonKey
 );
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const session = await getSession({ req });
-
-  if (!session) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
   if (req.method === "POST") {
-    const { file } = req.body;
+    const { file, fileName } = req.body;
 
     try {
       const { data, error } = await supabase.storage
         .from("receipts")
-        .upload(`${session.user.id}/${Date.now()}`, file);
+        .upload(fileName, file);
 
-      if (error) {
-        return res.status(500).json({ message: error.message });
-      }
+      if (error) throw error;
 
       res.status(200).json({ url: data.path });
     } catch (error) {

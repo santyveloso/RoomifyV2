@@ -10,13 +10,22 @@ export default async function handler(
 ) {
   const session = await getSession({ req });
 
-  if (!session) {
+  if (!session || !session.user?.email) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Get the user by email to get their ID
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+  });
+
+  if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
   const { id } = req.query;
 
-  if (session.user.id !== id) {
+  if (user.id !== id) {
     return res.status(403).json({ message: "Forbidden" });
   }
 

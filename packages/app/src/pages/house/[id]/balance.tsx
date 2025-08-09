@@ -1,9 +1,23 @@
 import { getSession } from "next-auth/react";
 import { PrismaClient } from "@prisma/client";
+import { GetServerSidePropsContext } from "next";
 
 const prisma = new PrismaClient();
 
-export default function Balance({ house, balances }) {
+interface House {
+  id: string;
+  name: string;
+  memberships: {
+    userId: string;
+  }[];
+}
+
+interface BalanceProps {
+  house: House;
+  balances: Record<string, number>;
+}
+
+export default function Balance({ house, balances }: BalanceProps) {
   return (
     <>
       <h1>Balances for {house.name}</h1>
@@ -18,9 +32,30 @@ export default function Balance({ house, balances }) {
   );
 }
 
-export async function getServerSideProps(context) {
+export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getSession(context);
-  const { id } = context.params;
+  const { id } = context.params || {};
+
+  if (!session?.user) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
+
+  // Get the user ID from session
+  const userId = (session.user as { id: string }).id;
+  
+  if (!userId) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
 
   const house = await prisma.house.findUnique({
     where: { id: String(id) },
@@ -34,7 +69,7 @@ export async function getServerSideProps(context) {
   }
 
   const isMember = house.memberships.some(
-    (membership) => membership.userId === session.user.id
+    (membership) => membership.userId === userId
   );
 
   if (!isMember) {
@@ -48,7 +83,7 @@ export async function getServerSideProps(context) {
 
   const res = await fetch(`http://localhost:3000/api/houses/${id}/balance`, {
     headers: {
-      cookie: context.req.headers.cookie,
+      cookie: context.req.headers.cookie || "",
     },
   });
   const balances = await res.json();

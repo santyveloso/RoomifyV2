@@ -20,6 +20,7 @@ model User {
   expenseShares     ExpenseShare[]
   choreAssignments  ChoreAssignment[]
   notifications     Notification[]
+  invitations       Invitation[]
 }
 
 model House {
@@ -32,6 +33,7 @@ model House {
   expenses      Expense[]
   messages      Message[]
   notifications Notification[]
+  invitations   Invitation[]
 }
 
 model Membership {
@@ -116,4 +118,18 @@ model Notification {
   payload    Json
   sentAt     DateTime?
   read       Boolean  @default(false)
+}
+
+model Invitation {
+  id        String   @id @default(uuid())
+  email     String
+  house     House    @relation(fields: [houseId], references: [id])
+  houseId   String
+  invitedBy User     @relation(fields: [invitedById], references: [id])
+  invitedById String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  accepted  Boolean  @default(false)
+
+  @@unique([email, houseId])
 }

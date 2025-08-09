@@ -1,9 +1,9 @@
 import { getSession } from "next-auth/react";
 import { PrismaClient } from "@prisma/client";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { GetServerSidePropsContext } from "next";
-import "../../pages/styles/globals.css";
 
 const prisma = new PrismaClient();
 
@@ -29,72 +29,74 @@ interface House {
   };
 }
 
-interface HouseDashboardProps {
+interface EditHouseProps {
   house: House;
 }
 
-export default function HouseDashboard({ house }: HouseDashboardProps) {
+export default function EditHouse({ house }: EditHouseProps) {
+  const [name, setName] = useState(house.name);
+  const [message, setMessage] = useState("");
   const router = useRouter();
-  
+  const { id } = router.query;
+
   // Check if current user is admin
   const currentUserMembership = house.memberships.find(
     (membership) => membership.userId === house.currentUser.id
   );
   const isAdmin = currentUserMembership?.role === "ADMIN";
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("Are you sure you want to remove this member?")) {
-      return;
-    }
+  if (!isAdmin) {
+    return (
+      <div>
+        <h1>Access Denied</h1>
+        <p>You do not have permission to edit this house.</p>
+        <Link href={`/house/${id}`}>Back to House</Link>
+      </div>
+    );
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
 
     try {
-      const res = await fetch(`/api/houses/${house.id}/members/${memberId}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/houses/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name }),
       });
 
       if (res.ok) {
-        router.reload();
+        setMessage("House updated successfully!");
+        router.push(`/house/${id}`);
       } else {
         const data = await res.json();
-        alert(data.message || "An error occurred while removing the member");
+        setMessage(data.message || "An error occurred while updating the house");
       }
     } catch (error) {
-      alert("An error occurred while removing the member");
+      setMessage("An error occurred while updating the house");
     }
   };
 
   return (
     <div>
-      <h1>{house.name}</h1>
-      {isAdmin && (
+      <h1>Edit House</h1>
+      <form onSubmit={handleSubmit}>
         <div>
-          <Link href={`/house/${house.id}/edit`}>Edit House</Link>
+          <label htmlFor="name">House Name</label>
+          <input
+            type="text"
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
         </div>
-      )}
-      <h2>Members</h2>
-      <ul>
-        {house.memberships.map((membership) => (
-          <li key={membership.id}>
-            {membership.user.name} ({membership.role})
-            {isAdmin && membership.userId !== house.currentUser.id && (
-              <button 
-                onClick={() => handleRemoveMember(membership.userId)}
-                style={{ marginLeft: "10px" }}
-              >
-                Remove
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {isAdmin && (
-        <div>
-          <Link href={`/house/${house.id}/invite`}>Invite Member</Link>
-        </div>
-      )}
-      <div>
-        <Link href="/">Back to Dashboard</Link>
-      </div>
+        <button type="submit">Update House</button>
+      </form>
+      {message && <p>{message}</p>}
+      <Link href={`/house/${id}`}>Back to House</Link>
     </div>
   );
 }
@@ -146,7 +148,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   if (!isMember) {
     return {
       redirect: {
-        destination: "/auth/signin",
+        destination: "/",
         permanent: false,
       },
     };

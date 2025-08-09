@@ -1,21 +1,58 @@
 import { getSession } from "next-auth/react";
 import { PrismaClient } from "@prisma/client";
-import { useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/router";
+import { GetServerSidePropsContext } from "next";
 
 const prisma = new PrismaClient();
 
-export default function Expenses({ house, expenses }) {
+interface User {
+  id: string;
+  name: string;
+}
+
+interface ExpenseShare {
+  id: string;
+  userId: string;
+  user: User;
+}
+
+interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  currency: string;
+  receiptUrl: string | null;
+  creator: User;
+  shares: ExpenseShare[];
+}
+
+interface House {
+  id: string;
+  name: string;
+  memberships: {
+    userId: string;
+  }[];
+}
+
+interface ExpensesProps {
+  house: House;
+  expenses: Expense[];
+}
+
+export default function Expenses({ house, expenses }: ExpensesProps) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState<File | null>(null);
   const router = useRouter();
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     let receiptUrl = null;
@@ -95,9 +132,30 @@ export default function Expenses({ house, expenses }) {
   );
 }
 
-export async function getServerSideProps(context) {
+export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getSession(context);
-  const { id } = context.params;
+  const { id } = context.params || {};
+
+  if (!session?.user) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
+
+  // Get the user ID from session
+  const userId = (session.user as { id: string }).id;
+  
+  if (!userId) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
 
   const house = await prisma.house.findUnique({
     where: { id: String(id) },
@@ -111,7 +169,7 @@ export async function getServerSideProps(context) {
   }
 
   const isMember = house.memberships.some(
-    (membership) => membership.userId === session.user.id
+    (membership) => membership.userId === userId
   );
 
   if (!isMember) {

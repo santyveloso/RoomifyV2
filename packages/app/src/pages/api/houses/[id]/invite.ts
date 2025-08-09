@@ -10,7 +10,16 @@ export default async function handler(
 ) {
   const session = await getSession({ req });
 
-  if (!session) {
+  if (!session || !session.user?.email) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Get the user by email to get their ID
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+  });
+
+  if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
@@ -29,30 +38,60 @@ export default async function handler(
       }
 
       const isMember = house.memberships.some(
-        (membership) => membership.userId === session.user.id && membership.role === "ADMIN"
+        (membership) => membership.userId === user.id && membership.role === "ADMIN"
       );
 
       if (!isMember) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const userToInvite = await prisma.user.findUnique({
+      // Check if user is already a member
+      const existingUser = await prisma.user.findUnique({
         where: { email },
       });
 
-      if (!userToInvite) {
-        return res.status(404).json({ message: "User not found" });
+      if (existingUser) {
+        const existingMembership = await prisma.membership.findUnique({
+          where: {
+            userId_houseId: {
+              userId: existingUser.id,
+              houseId: String(id),
+            },
+          },
+        });
+
+        if (existingMembership) {
+          return res.status(400).json({ message: "User is already a member of this house" });
+        }
+
+        // Create membership for existing user
+        const membership = await prisma.membership.create({
+          data: {
+            userId: existingUser.id,
+            houseId: String(id),
+          },
+        });
+
+        res.status(201).json(membership);
+      } else {
+        // Create invitation for new user
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // Invitation expires in 7 days
+
+        const invitation = await prisma.invitation.create({
+          data: {
+            email,
+            houseId: String(id),
+            invitedById: user.id,
+            expiresAt,
+          },
+        });
+
+        // TODO: Send email invitation
+        res.status(201).json({ message: "Invitation sent successfully" });
       }
-
-      const membership = await prisma.membership.create({
-        data: {
-          userId: userToInvite.id,
-          houseId: String(id),
-        },
-      });
-
-      res.status(201).json(membership);
     } catch (error) {
+      console.error(error);
       res.status(500).json({ message: "An error occurred while inviting the user" });
     }
   } else {

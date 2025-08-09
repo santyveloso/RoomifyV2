@@ -1,16 +1,49 @@
 import { getSession } from "next-auth/react";
 import { PrismaClient } from "@prisma/client";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
+import { GetServerSidePropsContext } from "next";
 
 const prisma = new PrismaClient();
 
-export default function Chores({ house, chores }) {
+interface User {
+  id: string;
+  name: string;
+}
+
+interface Assignment {
+  id: string;
+  userId: string;
+  dueDate: string;
+  user: User;
+}
+
+interface Chore {
+  id: string;
+  title: string;
+  description: string;
+  assignments: Assignment[];
+}
+
+interface House {
+  id: string;
+  name: string;
+  memberships: {
+    userId: string;
+  }[];
+}
+
+interface ChoresProps {
+  house: House;
+  chores: Chore[];
+}
+
+export default function Chores({ house, chores }: ChoresProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const router = useRouter();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const res = await fetch(`/api/houses/${house.id}/chores`, {
@@ -71,9 +104,30 @@ export default function Chores({ house, chores }) {
   );
 }
 
-export async function getServerSideProps(context) {
+export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getSession(context);
-  const { id } = context.params;
+  const { id } = context.params || {};
+
+  if (!session?.user) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
+
+  // Get the user ID from session
+  const userId = (session.user as { id: string }).id;
+  
+  if (!userId) {
+    return {
+      redirect: {
+        destination: "/auth/signin",
+        permanent: false,
+      },
+    };
+  }
 
   const house = await prisma.house.findUnique({
     where: { id: String(id) },
@@ -87,7 +141,7 @@ export async function getServerSideProps(context) {
   }
 
   const isMember = house.memberships.some(
-    (membership) => membership.userId === session.user.id
+    (membership) => membership.userId === userId
   );
 
   if (!isMember) {

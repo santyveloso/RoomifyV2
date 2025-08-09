@@ -25,28 +25,36 @@ export default async function handler(
 
   const { id } = req.query;
 
-  if (req.method === "POST") {
+  if (req.method === "PATCH") {
+    const { name } = req.body;
+
     try {
-      const notification = await prisma.notification.findUnique({
+      const house = await prisma.house.findUnique({
         where: { id: String(id) },
+        include: { memberships: true },
       });
 
-      if (!notification) {
-        return res.status(404).json({ message: "Notification not found" });
+      if (!house) {
+        return res.status(404).json({ message: "House not found" });
       }
 
-      if (notification.userId !== user.id) {
+      const currentUserMembership = house.memberships.find(
+        (membership) => membership.userId === user.id
+      );
+
+      if (!currentUserMembership || currentUserMembership.role !== "ADMIN") {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const updatedNotification = await prisma.notification.update({
+      const updatedHouse = await prisma.house.update({
         where: { id: String(id) },
-        data: { read: true },
+        data: { name },
       });
 
-      res.status(200).json(updatedNotification);
+      res.status(200).json(updatedHouse);
     } catch (error) {
-      res.status(500).json({ message: "An error occurred while updating the notification" });
+      console.error(error);
+      res.status(500).json({ message: "An error occurred while updating the house" });
     }
   } else {
     res.status(405).json({ message: "Method not allowed" });

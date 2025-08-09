@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
+import "../../pages/styles/globals.css";
 
 export default function CreateHouse() {
   const [name, setName] = useState("");
   const router = useRouter();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const res = await fetch("/api/houses", {
@@ -37,6 +39,7 @@ export default function CreateHouse() {
         </div>
         <button type="submit">Create house</button>
       </form>
+      <Link href="/">Back to Dashboard</Link>
     </>
   );
 }

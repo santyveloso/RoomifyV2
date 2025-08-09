@@ -10,7 +10,16 @@ export default async function handler(
 ) {
   const session = await getSession({ req });
 
-  if (!session) {
+  if (!session || !session.user?.email) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Get the user by email to get their ID
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+  });
+
+  if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
@@ -28,7 +37,7 @@ export default async function handler(
       }
 
       const isMember = house.memberships.some(
-        (membership) => membership.userId === session.user.id
+        (membership) => membership.userId === user.id
       );
 
       if (!isMember) {
@@ -43,37 +52,44 @@ export default async function handler(
       const balances = new Map<string, number>();
 
       for (const membership of house.memberships) {
-        balances.set(membership.user.name, 0);
+        balances.set(membership.user.name || membership.user.email, 0);
       }
 
       for (const expense of expenses) {
         if (expense.splitEqual) {
-          const amountPerUser = expense.amount / house.memberships.length;
+          const amountPerUser = Number(expense.amount) / house.memberships.length;
           for (const membership of house.memberships) {
+            const userName = membership.user.name || membership.user.email;
+            const currentBalance = balances.get(userName) || 0;
             if (membership.userId === expense.creatorId) {
               balances.set(
-                membership.user.name,
-                balances.get(membership.user.name) + (expense.amount - amountPerUser)
+                userName,
+                currentBalance + (Number(expense.amount) - amountPerUser)
               );
             } else {
               balances.set(
-                membership.user.name,
-                balances.get(membership.user.name) - amountPerUser
+                userName,
+                currentBalance - amountPerUser
               );
             }
           }
         } else {
           for (const share of expense.shares) {
-            const user = house.memberships.find(
+            const membership = house.memberships.find(
               (membership) => membership.userId === share.userId
-            ).user;
+            );
+            
+            if (!membership) continue;
+            
+            const userName = membership.user.name || membership.user.email;
+            const currentBalance = balances.get(userName) || 0;
             if (share.userId === expense.creatorId) {
               balances.set(
-                user.name,
-                balances.get(user.name) + (expense.amount - share.amount)
+                userName,
+                currentBalance + (Number(expense.amount) - Number(share.amount))
               );
             } else {
-              balances.set(user.name, balances.get(user.name) - share.amount);
+              balances.set(userName, currentBalance - Number(share.amount));
             }
           }
         }

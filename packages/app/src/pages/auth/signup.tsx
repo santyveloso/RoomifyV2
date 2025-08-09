@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
+import Link from "next/link";
+import "../styles/globals.css";
 
 export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const res = await fetch("/api/auth/signup", {
@@ -55,6 +57,7 @@ export default function SignUp() {
         </div>
         <button type="submit">Sign up</button>
       </form>
+      <Link href="/auth/signin">Already have an account? Sign in</Link>
     </>
   );
 }

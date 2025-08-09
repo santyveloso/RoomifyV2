@@ -10,7 +10,16 @@ export default async function handler(
 ) {
   const session = await getSession({ req });
 
-  if (!session) {
+  if (!session || !session.user?.email) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Get the user by email to get their ID
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+  });
+
+  if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
@@ -30,7 +39,7 @@ export default async function handler(
       }
 
       const isMember = house.memberships.some(
-        (membership) => membership.userId === session.user.id
+        (membership) => membership.userId === user.id
       );
 
       if (!isMember) {
@@ -44,7 +53,7 @@ export default async function handler(
           currency,
           splitEqual,
           houseId: String(id),
-          creatorId: session.user.id,
+          creatorId: user.id,
           shares: {
             create: shares,
           },
@@ -67,7 +76,7 @@ export default async function handler(
       }
 
       const isMember = house.memberships.some(
-        (membership) => membership.userId === session.user.id
+        (membership) => membership.userId === user.id
       );
 
       if (!isMember) {
