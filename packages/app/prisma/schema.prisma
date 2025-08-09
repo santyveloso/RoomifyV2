@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String?
+  password          String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  memberships       Membership[]
+  messages          Message[]
+  expenses          Expense[]  @relation("creator_expenses")
+  expenseShares     ExpenseShare[]
+  choreAssignments  ChoreAssignment[]
+  notifications     Notification[]
+}
+
+model House {
+  id            String    @id @default(uuid())
+  name          String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  memberships   Membership[]
+  chores        Chore[]
+  expenses      Expense[]
+  messages      Message[]
+  notifications Notification[]
+}
+
+model Membership {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  house     House    @relation(fields: [houseId], references: [id])
+  houseId   String
+  role      String   @default("ROOMIE")
+  joinedAt  DateTime @default(now())
+  active    Boolean  @default(true)
+
+  @@unique([userId, houseId])
+}
+
+model Expense {
+  id           String      @id @default(uuid())
+  house        House       @relation(fields: [houseId], references: [id])
+  houseId      String
+  creator      User        @relation("creator_expenses", fields: [creatorId], references: [id])
+  creatorId    String
+  title        String
+  amount       Decimal     @db.Decimal(10, 2)
+  currency     String      @default("EUR")
+  date         DateTime    @default(now())
+  receiptUrl   String?
+  splitEqual   Boolean     @default(true)
+  paidByUserId String?
+  status       String @default("OPEN")
+  shares       ExpenseShare[]
+}
+
+model ExpenseShare {
+  id         String   @id @default(uuid())
+  expense    Expense  @relation(fields: [expenseId], references: [id])
+  expenseId  String
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  amount     Decimal  @db.Decimal(10, 2)
+  settled    Boolean  @default(false)
+}
+
+model Chore {
+  id          String   @id @default(uuid())
+  house       House    @relation(fields: [houseId], references: [id])
+  houseId     String
+  title       String
+  description String?
+  frequency   String   @default("WEEKLY")
+  active      Boolean  @default(true)
+  assignments ChoreAssignment[]
+}
+
+model ChoreAssignment {
+  id          String   @id @default(uuid())
+  chore       Chore    @relation(fields: [choreId], references: [id])
+  choreId     String
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  dueDate     DateTime
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  house     House    @relation(fields: [houseId], references: [id])
+  houseId   String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+  house      House?   @relation(fields: [houseId], references: [id])
+  houseId    String?
+  type       String
+  payload    Json
+  sentAt     DateTime?
+  read       Boolean  @default(false)
+}
